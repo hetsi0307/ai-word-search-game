@@ -193,290 +193,295 @@
         <button onclick="startNewGame()" style="margin-top: 20px;">Play Again</button>
     </div>
 
-    <script>
-        const categories = {
-            nature: ['TREE', 'FLOWER', 'RIVER', 'MOUNTAIN', 'FOREST', 'BIRD', 'OCEAN', 'LEAF'],
-            education: ['BOOK', 'PENCIL', 'SCHOOL', 'TEACHER', 'STUDENT', 'LEARN', 'STUDY', 'EXAM'],
-            sports: ['FOOTBALL', 'TENNIS', 'BASKETBALL', 'SOCCER', 'GOLF', 'SWIM', 'RUN', 'JUMP'],
-            beach: ['SAND', 'WAVE', 'SHELL', 'SURF', 'SUN', 'PALM', 'TIDE', 'CORAL'],
-            food: ['PIZZA', 'BURGER', 'PASTA', 'SALAD', 'FRUIT', 'BREAD', 'CHEESE', 'MILK'],
-            technology: ['COMPUTER', 'PHONE', 'INTERNET', 'CODE', 'DATA', 'ROBOT', 'AI', 'CYBER']
-        };
+  <script>
+    const categories = {
+        nature: ['TREE', 'FLOWER', 'RIVER', 'MOUNTAIN', 'FOREST', 'BIRD', 'OCEAN', 'LEAF'],
+        education: ['BOOK', 'PENCIL', 'SCHOOL', 'TEACHER', 'STUDENT', 'LEARN', 'STUDY', 'EXAM'],
+        sports: ['FOOTBALL', 'TENNIS', 'BASKETBALL', 'SOCCER', 'GOLF', 'SWIM', 'RUN', 'JUMP'],
+        beach: ['SAND', 'WAVE', 'SHELL', 'SURF', 'SUN', 'PALM', 'TIDE', 'CORAL'],
+        food: ['PIZZA', 'BURGER', 'PASTA', 'SALAD', 'FRUIT', 'BREAD', 'CHEESE', 'MILK'],
+        technology: ['COMPUTER', 'PHONE', 'INTERNET', 'CODE', 'DATA', 'ROBOT', 'AI', 'CYBER']
+    };
 
-        let currentGrid = [];
-        let currentWords = [];
-        let foundWords = [];
-        let selectedCells = [];
-        let isSelecting = false;
-        let gameTime = 0;
-        let gameTimer;
+    let currentGrid = [];
+    let currentWords = [];
+    let foundWords = [];
+    let selectedCells = [];
+    let isSelecting = false;
+    let gameTime = 0;
+    let gameTimer;
 
-        // Track last chosen 6-word set per category to avoid exact repeats.
-        const lastWordsByCategory = {};
-        const keyOf = arr => arr.slice().sort().join('|');
+    const lastWordsByCategory = {};
+    const keyOf = arr => arr.slice().sort().join('|');
 
-        // Shuffle/sample helper
-        function pickRandomWords(pool, count = 6) {
-            const copy = [...pool];
-            for (let i = copy.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [copy[i], copy[j]] = [copy[j], copy[i]];
+    function pickRandomWords(pool, count = 6) {
+        const copy = [...pool];
+        for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy.slice(0, Math.min(count, copy.length));
+    }
+
+    function pickNewWords(category) {
+        const pool = categories[category];
+        const count = Math.min(6, pool.length);
+        const lastKey = lastWordsByCategory[category] || '';
+        let tries = 0, choice, choiceKey;
+
+        do {
+            choice = pickRandomWords(pool, count);
+            choiceKey = keyOf(choice);
+            tries++;
+        } while (tries < 20 && choiceKey === lastKey);
+
+        lastWordsByCategory[category] = choiceKey;
+        return choice;
+    }
+
+    function initializeGame() {
+        const categorySelect = document.getElementById('categorySelect');
+        const selectedCategory = categorySelect.value;
+        currentWords = pickNewWords(selectedCategory);
+
+        foundWords = [];
+        selectedCells = [];
+        gameTime = 0;
+
+        generateGrid();
+        updateWordsDisplay();
+        updateScore();
+        startTimer();
+
+        document.getElementById('celebration').style.display = 'none';
+    }
+
+    function generateGrid() {
+        const gridSize = 12;
+        currentGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(''));
+
+        currentWords.forEach(word => {
+            placeWordInGrid(word, gridSize);
+        });
+
+        for (let i = 0; i < gridSize; i++) {
+            for (let j = 0; j < gridSize; j++) {
+                if (currentGrid[i][j] === '') {
+                    currentGrid[i][j] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+                }
             }
-            return copy.slice(0, Math.min(count, copy.length));
         }
 
-        // Returns a new 6-word set that isn't identical to the last one used for this category
-        function pickNewWords(category) {
-            const pool = categories[category];
-            const count = Math.min(6, pool.length);
-            const lastKey = lastWordsByCategory[category] || '';
-            let tries = 0, choice, choiceKey;
+        renderGrid();
+    }
 
-            do {
-                choice = pickRandomWords(pool, count);
-                choiceKey = keyOf(choice);
-                tries++;
-            } while (tries < 20 && choiceKey === lastKey); // avoid immediate repeat
+    function placeWordInGrid(word, gridSize) {
+        const directions = [[0, 1], [1, 0], [1, 1], [-1, 1]];
+        let placed = false;
+        let attempts = 0;
 
-            lastWordsByCategory[category] = choiceKey;
-            return choice;
+        while (!placed && attempts < 100) {
+            const direction = directions[Math.floor(Math.random() * directions.length)];
+            const startRow = Math.floor(Math.random() * gridSize);
+            const startCol = Math.floor(Math.random() * gridSize);
+
+            if (canPlaceWord(word, startRow, startCol, direction, gridSize)) {
+                for (let i = 0; i < word.length; i++) {
+                    const row = startRow + i * direction[0];
+                    const col = startCol + i * direction[1];
+                    currentGrid[row][col] = word[i];
+                }
+                placed = true;
+            }
+            attempts++;
         }
+    }
 
-        function initializeGame() {
-            const categorySelect = document.getElementById('categorySelect');
-            const selectedCategory = categorySelect.value;
+    function canPlaceWord(word, startRow, startCol, direction, gridSize) {
+        for (let i = 0; i < word.length; i++) {
+            const row = startRow + i * direction[0];
+            const col = startCol + i * direction[1];
 
-            // NEW: fresh set each game, guaranteed different from previous set for that category
-            currentWords = pickNewWords(selectedCategory);
-
-            foundWords = [];
-            selectedCells = [];
-            gameTime = 0;
-
-            generateGrid();
-            updateWordsDisplay();
-            updateScore();
-            startTimer();
-
-            document.getElementById('celebration').style.display = 'none';
+            if (row < 0 || row >= gridSize || col < 0 || col >= gridSize) return false;
+            if (currentGrid[row][col] !== '' && currentGrid[row][col] !== word[i]) return false;
         }
+        return true;
+    }
 
-        function generateGrid() {
-            const gridSize = 12;
-            currentGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(''));
+    function renderGrid() {
+        const gridElement = document.getElementById('wordGrid');
+        gridElement.innerHTML = '';
 
-            // Place words in grid
-            currentWords.forEach(word => {
-                placeWordInGrid(word, gridSize);
-            });
+        for (let i = 0; i < currentGrid.length; i++) {
+            for (let j = 0; j < currentGrid[i].length; j++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.textContent = currentGrid[i][j];
+                cell.dataset.row = i;
+                cell.dataset.col = j;
 
-            // Fill empty cells with random letters
-            for (let i = 0; i < gridSize; i++) {
-                for (let j = 0; j < gridSize; j++) {
-                    if (currentGrid[i][j] === '') {
-                        currentGrid[i][j] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+                // ✅ Mouse events
+                cell.addEventListener('mousedown', startSelection);
+                cell.addEventListener('mouseenter', continueSelection);
+                cell.addEventListener('mouseup', endSelection);
+
+                // ✅ Touch events for mobile
+                cell.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    startSelection({ target: cell });
+                });
+                cell.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                    if (element && element.classList.contains('cell')) {
+                        continueSelection({ target: element });
                     }
-                }
-            }
+                });
+                cell.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    endSelection();
+                });
 
-            renderGrid();
-        }
-
-        function placeWordInGrid(word, gridSize) {
-            const directions = [
-                [0, 1],   // horizontal →
-                [1, 0],   // vertical ↓
-                [1, 1],   // diagonal ↘︎
-                [-1, 1],  // diagonal ↗︎
-            ];
-
-            let placed = false;
-            let attempts = 0;
-
-            while (!placed && attempts < 100) {
-                const direction = directions[Math.floor(Math.random() * directions.length)];
-                const startRow = Math.floor(Math.random() * gridSize);
-                const startCol = Math.floor(Math.random() * gridSize);
-
-                if (canPlaceWord(word, startRow, startCol, direction, gridSize)) {
-                    for (let i = 0; i < word.length; i++) {
-                        const row = startRow + i * direction[0];
-                        const col = startCol + i * direction[1];
-                        currentGrid[row][col] = word[i];
-                    }
-                    placed = true;
-                }
-                attempts++;
+                gridElement.appendChild(cell);
             }
         }
+    }
 
-        function canPlaceWord(word, startRow, startCol, direction, gridSize) {
-            for (let i = 0; i < word.length; i++) {
-                const row = startRow + i * direction[0];
-                const col = startCol + i * direction[1];
+    function startSelection(e) {
+        isSelecting = true;
+        selectedCells = [e.target];
+        e.target.classList.add('selected');
+        createParticle(e.target);
+    }
 
-                if (row < 0 || row >= gridSize || col < 0 || col >= gridSize) return false;
-                if (currentGrid[row][col] !== '' && currentGrid[row][col] !== word[i]) return false;
-            }
-            return true;
-        }
-
-        function renderGrid() {
-            const gridElement = document.getElementById('wordGrid');
-            gridElement.innerHTML = '';
-
-            for (let i = 0; i < currentGrid.length; i++) {
-                for (let j = 0; j < currentGrid[i].length; j++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.textContent = currentGrid[i][j];
-                    cell.dataset.row = i;
-                    cell.dataset.col = j;
-
-                    cell.addEventListener('mousedown', startSelection);
-                    cell.addEventListener('mouseenter', continueSelection);
-                    cell.addEventListener('mouseup', endSelection);
-
-                    gridElement.appendChild(cell);
-                }
-            }
-        }
-
-        function startSelection(e) {
-            isSelecting = true;
-            selectedCells = [e.target];
+    function continueSelection(e) {
+        if (!isSelecting) return;
+        const lastCell = selectedCells[selectedCells.length - 1];
+        if (isAdjacent(lastCell, e.target) && !selectedCells.includes(e.target)) {
+            selectedCells.push(e.target);
             e.target.classList.add('selected');
             createParticle(e.target);
         }
+    }
 
-        function continueSelection(e) {
-            if (!isSelecting) return;
+    function endSelection() {
+        if (!isSelecting) return;
+        isSelecting = false;
 
-            const lastCell = selectedCells[selectedCells.length - 1];
-            if (isAdjacent(lastCell, e.target) && !selectedCells.includes(e.target)) {
-                selectedCells.push(e.target);
-                e.target.classList.add('selected');
-                createParticle(e.target);
-            }
-        }
+        const selectedWord = selectedCells.map(cell => cell.textContent).join('');
 
-        function endSelection() {
-            if (!isSelecting) return;
-
-            isSelecting = false;
-            const selectedWord = selectedCells.map(cell => cell.textContent).join('');
-
-            if (currentWords.includes(selectedWord) && !foundWords.includes(selectedWord)) {
-                foundWords.push(selectedWord);
-                selectedCells.forEach(cell => {
-                    cell.classList.remove('selected');
-                    cell.classList.add('found');
-                });
-                updateWordsDisplay();
-                updateScore();
-
-                if (foundWords.length === currentWords.length) endGame();
-            } else {
-                selectedCells.forEach(cell => cell.classList.remove('selected'));
-            }
-
-            selectedCells = [];
-        }
-
-        function isAdjacent(cell1, cell2) {
-            const row1 = parseInt(cell1.dataset.row);
-            const col1 = parseInt(cell1.dataset.col);
-            const row2 = parseInt(cell2.dataset.row);
-            const col2 = parseInt(cell2.dataset.col);
-
-            const rowDiff = Math.abs(row1 - row2);
-            const colDiff = Math.abs(col1 - col2);
-
-            return (rowDiff <= 1 && colDiff <= 1) && !(rowDiff === 0 && colDiff === 0);
-        }
-
-        function updateWordsDisplay() {
-            const wordsListElement = document.getElementById('wordsList');
-            wordsListElement.innerHTML = '';
-
-            currentWords.forEach(word => {
-                const wordElement = document.createElement('div');
-                wordElement.className = 'word-item';
-                wordElement.textContent = word;
-
-                if (foundWords.includes(word)) wordElement.classList.add('found');
-                wordsListElement.appendChild(wordElement);
+        if (currentWords.includes(selectedWord) && !foundWords.includes(selectedWord)) {
+            foundWords.push(selectedWord);
+            selectedCells.forEach(cell => {
+                cell.classList.remove('selected');
+                cell.classList.add('found');
             });
+            updateWordsDisplay();
+            updateScore();
+
+            if (foundWords.length === currentWords.length) endGame();
+        } else {
+            selectedCells.forEach(cell => cell.classList.remove('selected'));
         }
 
-        function updateScore() {
-            document.getElementById('foundCount').textContent = foundWords.length;
-            document.getElementById('totalCount').textContent = currentWords.length;
+        selectedCells = [];
+    }
+
+    function isAdjacent(cell1, cell2) {
+        const row1 = parseInt(cell1.dataset.row);
+        const col1 = parseInt(cell1.dataset.col);
+        const row2 = parseInt(cell2.dataset.row);
+        const col2 = parseInt(cell2.dataset.col);
+
+        const rowDiff = Math.abs(row1 - row2);
+        const colDiff = Math.abs(col1 - col2);
+
+        return (rowDiff <= 1 && colDiff <= 1) && !(rowDiff === 0 && colDiff === 0);
+    }
+
+    function updateWordsDisplay() {
+        const wordsListElement = document.getElementById('wordsList');
+        wordsListElement.innerHTML = '';
+
+        currentWords.forEach(word => {
+            const wordElement = document.createElement('div');
+            wordElement.className = 'word-item';
+            wordElement.textContent = word;
+
+            if (foundWords.includes(word)) wordElement.classList.add('found');
+            wordsListElement.appendChild(wordElement);
+        });
+    }
+
+    function updateScore() {
+        document.getElementById('foundCount').textContent = foundWords.length;
+        document.getElementById('totalCount').textContent = currentWords.length;
+    }
+
+    function startTimer() {
+        clearInterval(gameTimer);
+        gameTimer = setInterval(() => {
+            gameTime++;
+            const minutes = Math.floor(gameTime / 60);
+            const seconds = gameTime % 60;
+            document.getElementById('timer').textContent =
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }, 1000);
+    }
+
+    function endGame() {
+        clearInterval(gameTimer);
+        const finalTime = document.getElementById('timer').textContent;
+        document.getElementById('finalTime').textContent = finalTime;
+        document.getElementById('celebration').style.display = 'block';
+
+        for (let i = 0; i < 20; i++) {
+            setTimeout(() => createCelebrationParticle(), i * 100);
         }
+    }
 
-        function startTimer() {
-            clearInterval(gameTimer);
-            gameTimer = setInterval(() => {
-                gameTime++;
-                const minutes = Math.floor(gameTime / 60);
-                const seconds = gameTime % 60;
-                document.getElementById('timer').textContent =
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }, 1000);
+    function createParticle(element) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = element.offsetLeft + element.offsetWidth / 2 + 'px';
+        particle.style.top = element.offsetTop + element.offsetHeight / 2 + 'px';
+        particle.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
+        element.parentNode.appendChild(particle);
+
+        setTimeout(() => particle.remove(), 2000);
+    }
+
+    function createCelebrationParticle() {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = Math.random() * window.innerWidth + 'px';
+        particle.style.top = Math.random() * window.innerHeight + 'px';
+        particle.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
+        particle.style.animationDelay = Math.random() * 1000 + 'ms';
+        document.body.appendChild(particle);
+
+        setTimeout(() => particle.remove(), 2000);
+    }
+
+    function startNewGame() { initializeGame(); }
+    function giveHint() {
+        const remainingWords = currentWords.filter(word => !foundWords.includes(word));
+        if (remainingWords.length > 0) {
+            const hintWord = remainingWords[Math.floor(Math.random() * remainingWords.length)];
+            alert(`Hint: Look for the word "${hintWord}"`);
         }
+    }
 
-        function endGame() {
-            clearInterval(gameTimer);
-            const finalTime = document.getElementById('timer').textContent;
-            document.getElementById('finalTime').textContent = finalTime;
-            document.getElementById('celebration').style.display = 'block';
+    document.getElementById('categorySelect').addEventListener('change', initializeGame);
+    document.getElementById('newGameBtn').addEventListener('click', startNewGame);
+    document.getElementById('hintBtn').addEventListener('click', giveHint);
 
-            for (let i = 0; i < 20; i++) {
-                setTimeout(() => createCelebrationParticle(), i * 100);
-            }
-        }
+    document.addEventListener('selectstart', e => e.preventDefault());
 
-        function createParticle(element) {
-            const particle = document.createElement('div');
-            particle.className = 'particle';
-            particle.style.left = element.offsetLeft + element.offsetWidth / 2 + 'px';
-            particle.style.top = element.offsetTop + element.offsetHeight / 2 + 'px';
-            particle.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
-            element.parentNode.appendChild(particle);
+    initializeGame();
+</script>
 
-            setTimeout(() => particle.remove(), 2000);
-        }
-
-        function createCelebrationParticle() {
-            const particle = document.createElement('div');
-            particle.className = 'particle';
-            particle.style.left = Math.random() * window.innerWidth + 'px';
-            particle.style.top = Math.random() * window.innerHeight + 'px';
-            particle.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
-            particle.style.animationDelay = Math.random() * 1000 + 'ms';
-            document.body.appendChild(particle);
-
-            setTimeout(() => particle.remove(), 2000);
-        }
-
-        function startNewGame() { initializeGame(); }
-
-        function giveHint() {
-            const remainingWords = currentWords.filter(word => !foundWords.includes(word));
-            if (remainingWords.length > 0) {
-                const hintWord = remainingWords[Math.floor(Math.random() * remainingWords.length)];
-                alert(`Hint: Look for the word "${hintWord}"`);
-            }
-        }
-
-        document.getElementById('categorySelect').addEventListener('change', initializeGame);
-        document.getElementById('newGameBtn').addEventListener('click', startNewGame);
-        document.getElementById('hintBtn').addEventListener('click', giveHint);
-
-        document.addEventListener('selectstart', e => e.preventDefault());
-
-        initializeGame();
-    </script>
 
   <!-- CTA Section -->
   <div style="text-align: center; margin: 50px auto; max-width: 700px; padding: 25px; 
@@ -496,4 +501,5 @@
   </div>
 </body>
 </html>
+
 
