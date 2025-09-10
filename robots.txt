@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ai-word-search-game.netlify.app/sitemap.xml
